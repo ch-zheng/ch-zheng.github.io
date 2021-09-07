@@ -10,21 +10,15 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera();
 camera.position.z = 7;
 camera.position.y = 8;
-//camera.lookAt(0, 0, 0);
 
 //Meshes
-const material = new THREE.MeshPhongMaterial();
-//Artifact
-const box = new THREE.DodecahedronGeometry();
-const artifact = new THREE.Mesh(box, material);
-artifact.position.z = -4;
-scene.add(artifact);
 //Terrain
-const terrainGeo = create_terrain(8);
-const terrain = new THREE.Mesh(terrainGeo, material);
-scene.add(terrain);
+const radius = 8;
+const terrainGeo = create_terrain(radius);
+const terrainMat = new THREE.MeshLambertMaterial();
+const terrain = new THREE.Mesh(terrainGeo, terrainMat);
 //Water
-const plane = new THREE.PlaneGeometry(17, 17);
+const plane = new THREE.PlaneGeometry(2*radius, 2*radius);
 const waterMat = new THREE.MeshPhongMaterial({
 	color: 0x64B5F6,
 	opacity: 0.6,
@@ -33,31 +27,19 @@ const waterMat = new THREE.MeshPhongMaterial({
 const water = new THREE.Mesh(plane, waterMat);
 water.position.y = -0.2;
 water.rotateX(-Math.PI / 2);
-scene.add(water);
-//Test
-/*
-const testGeo = new THREE.BufferGeometry();
-const testVerts = new Float32Array([
-	0, 0, 0,
-	4, 0, 0,
-	0, 4, 0
-]);
-const testNorms = new Float32Array([
-	0, 0, 1,
-	0, 0, 1,
-	0, 0, 1
-]);
-testGeo.setAttribute('position', new THREE.BufferAttribute(testVerts, 3));
-testGeo.setAttribute('normal', new THREE.BufferAttribute(testNorms, 3));
-const testMesh = new THREE.Mesh(testGeo, material);
-scene.add(testMesh);
-*/
+//Chunk groups
+const chunk = new THREE.Group();
+chunk.add(terrain);
+chunk.add(water);
+scene.add(chunk);
+const doppelChunk = chunk.clone();
+doppelChunk.scale.z = -1;
+doppelChunk.position.z = -2*radius;
+scene.add(doppelChunk);
 
 //Lighting
 const sunlight = new THREE.DirectionalLight(0xFFFFFF, 0.5);
 scene.add(sunlight);
-const ambient = new THREE.AmbientLight(0xFFFFFF, 0.2);
-scene.add(ambient);
 const viewLight = new THREE.PointLight(0xFFFFFF, 0.5);
 viewLight.position.set(camera.position.x, camera.position.y, camera.position.z);
 scene.add(viewLight);
@@ -69,12 +51,19 @@ function update(timestamp) {
 	const delta = (timestamp - previousTimestamp) / 1000;
 	previousTimestamp = timestamp;
 	//Frame updates
-	t += 2 * delta;
+	t += 3 * delta;
 	t %= 2 * Math.PI;
-	//artifact.position.y = 2 * Math.sin(t);
 	//Camera shake
-	camera.rotation.x = 0.01 * Math.sin(t) - 1;
-	camera.rotation.y = 0.002 * Math.sin(2*t);
+	camera.rotation.x = 0.005 * Math.sin(2 * t) - 1; //Vertical
+	camera.rotation.y = 0.01 * Math.sin(t); //Horizontal
+	//Slide chunks
+	chunk.position.z += 2 * delta;
+	doppelChunk.position.z += 2 * delta;
+	//Chunk wrapping
+	if (chunk.position.z > 2 * radius)
+		chunk.position.z = doppelChunk.position.z - 2 * radius;
+	else if (doppelChunk.position.z > 2 * radius)
+		doppelChunk.position.z = chunk.position.z - 2 * radius;
 	renderer.render(scene, camera);
 	window.requestAnimationFrame(update);
 }
@@ -87,10 +76,6 @@ function create_terrain(radius) {
 	let k = 0;
 	for (let i = 0; i < 2 * radius; ++i) {
 		for (let j = 0; j < 2 * radius; ++j) {
-			/* Heightmap vertex layout
-				(i, j) (i+1, j)
-				(i, j+1) (i+1, j+1)
-			*/
 			vertices.set([
 				//Upper-right triangle
 				i, heightmap[i][j], j,
@@ -127,6 +112,7 @@ function create_heightmap(radius) {
 }
 
 //3x3 cross product
+/*
 function cross(a, b) {
 	return [
 		a[1]*b[2] - a[2]*b[1],
@@ -134,3 +120,4 @@ function cross(a, b) {
 		a[0]*b[1] - a[1]*b[0]
 	];
 }
+*/
