@@ -1,248 +1,136 @@
 'use strict';
 
-//Globals
-const ctx = document.getElementById('boids_canvas')
-	.getContext('2d');
-const boids = [];
-const VELOCITY = 70;
-//const ANGULAR_VELOCITY = 1;
-const VIEW_RADIUS = 20;
+const renderer = new THREE.WebGLRenderer({
+	canvas: document.getElementById('render_canvas'),
+	antialias: true
+});
 
-//Populate boids
-for (let i = 0; i < 400; i++) {
-	const direction = randomInt(0, 2 * Math.PI)
-	boids.push({
-		x: randomInt(0, ctx.canvas.width),
-		y: randomInt(0, ctx.canvas.height),
-		dx: VELOCITY * Math.cos(direction),
-		dy: VELOCITY * Math.sin(direction)
-	});
-}
+//Scene setup
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera();
+camera.position.z = 7;
+camera.position.y = 8;
+//camera.lookAt(0, 0, 0);
 
-//Frame updates
+//Meshes
+const material = new THREE.MeshPhongMaterial();
+//Artifact
+const box = new THREE.DodecahedronGeometry();
+const artifact = new THREE.Mesh(box, material);
+artifact.position.z = -4;
+scene.add(artifact);
+//Terrain
+const terrainGeo = create_terrain(8);
+const terrain = new THREE.Mesh(terrainGeo, material);
+scene.add(terrain);
+//Water
+const plane = new THREE.PlaneGeometry(17, 17);
+const waterMat = new THREE.MeshPhongMaterial({
+	color: 0x64B5F6,
+	opacity: 0.6,
+	transparent: true
+});
+const water = new THREE.Mesh(plane, waterMat);
+water.position.y = -0.2;
+water.rotateX(-Math.PI / 2);
+scene.add(water);
+//Test
+/*
+const testGeo = new THREE.BufferGeometry();
+const testVerts = new Float32Array([
+	0, 0, 0,
+	4, 0, 0,
+	0, 4, 0
+]);
+const testNorms = new Float32Array([
+	0, 0, 1,
+	0, 0, 1,
+	0, 0, 1
+]);
+testGeo.setAttribute('position', new THREE.BufferAttribute(testVerts, 3));
+testGeo.setAttribute('normal', new THREE.BufferAttribute(testNorms, 3));
+const testMesh = new THREE.Mesh(testGeo, material);
+scene.add(testMesh);
+*/
+
+//Lighting
+const sunlight = new THREE.DirectionalLight(0xFFFFFF, 0.5);
+scene.add(sunlight);
+const ambient = new THREE.AmbientLight(0xFFFFFF, 0.2);
+scene.add(ambient);
+const viewLight = new THREE.PointLight(0xFFFFFF, 0.5);
+viewLight.position.set(camera.position.x, camera.position.y, camera.position.z);
+scene.add(viewLight);
+
+//Main loop
+let t = 0;
 let previousTimestamp = performance.now();
 function update(timestamp) {
 	const delta = (timestamp - previousTimestamp) / 1000;
 	previousTimestamp = timestamp;
-	//Behavior
-	for (const boid of boids) {
-		//Get neighbors
-		//TODO: Spacial partitioning method
-		const neighbors = [];
-		for (const other of boids) {
-			if (other === boid) continue;
-			/* Wrapping-conscious distance
-			let x_distance = Math.min(
-				Math.abs(boid.x - other.x),
-				Math.abs(boid.x - other.x + ctx.canvas.width),
-				Math.abs(boid.x - other.x - ctx.canvas.width)
-			);
-			let y_distance = Math.min(
-				Math.abs(boid.y - other.y),
-				Math.abs(boid.y - other.y + ctx.canvas.height),
-				Math.abs(boid.y - other.y - ctx.canvas.height)
-			);
-			const distance = Math.hypot(x_distance, y_distance);
-			*/
-			const distance = Math.hypot(
-				Math.abs(other.x - boid.x),
-				Math.abs(other.y - boid.y)
-			);
-			if (distance < VIEW_RADIUS) {
-				neighbors.push({
-					x: other.x, y: other.y,
-					/*x: boid.x - x_distance,
-					y: boid.y - y_distance,*/
-					dx: other.dx, dy: other.dy,
-					distance: distance,
-				});
-			}
-		}
-		//Boidal urges
-		let cohesion = {x: 0, y: 0};
-		let separation = {x: 0, y: 0};
-		let alignment = {x: 0, y: 0};
-		if (neighbors.length) {
-			for (const neighbor of neighbors) {
-				cohesion.x += neighbor.x - boid.x;
-				cohesion.y += neighbor.y - boid.y;
-				separation.x -= (neighbor.x - boid.x) / neighbor.distance;
-				separation.y -= (neighbor.y - boid.y) / neighbor.distance;
-				alignment.x += neighbor.dx;
-				alignment.y += neighbor.dy;
-			}
-			cohesion = normalize(cohesion);
-			separation = normalize(separation, 1.02);
-			alignment = normalize(alignment);
-		}
-		//Obstacle avoidance
-		let collision = {x: 0, y: 0};
-		if (boid.x - VIEW_RADIUS < 0) collision.x = 1;
-		else if (boid.x + VIEW_RADIUS > ctx.canvas.width) collision.x = -1;
-		if (boid.y - VIEW_RADIUS < 0) collision.y = 1;
-		else if (boid.y + VIEW_RADIUS > ctx.canvas.height) collision.y = -1;
-		collision = normalize(collision, 0.5);
-		//TODO: Priority decisionmaking
-		const result = normalize(add(
-			cohesion,
-			separation,
-			alignment,
-			collision
-		), VELOCITY);
-		boid.dx = result.x || boid.dx;
-		boid.dy = result.y || boid.dy;
-	}
-	//Physics
-	for (const boid of boids) {
-		//Movement
-		/* Polar coordinates
-		boid.x += (VELOCITY * Math.cos(boid.direction)) * delta;
-		boid.y += (VELOCITY * Math.sin(boid.direction)) * delta;
-		*/
-		boid.x += boid.dx * delta;
-		boid.y += boid.dy * delta;
-		//World boundary collisions
-		if (boid.x < 0) boid.x = 0;
-		else if (boid.x > ctx.canvas.width) boid.x = ctx.canvas.width;
-		if (boid.x < 0) boid.y = 0;
-		else if (boid.y > ctx.canvas.height) boid.y = ctx.canvas.height;
-		/*
-		//x wrapping
-		if (boid.x > ctx.canvas.width)
-			boid.x %= ctx.canvas.width;
-		else if (boid.x < 0)
-			boid.x = ctx.canvas.width + boid.x;
-		//y wrapping
-		if (boid.y > ctx.canvas.height)
-			boid.y %= ctx.canvas.height;
-		else if (boid.y < 0)
-			boid.y = ctx.canvas.height + boid.y;
-		*/
-	}
-	//Rendering
-	ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-	for (const boid of boids) {
-		ctx.beginPath();
-		const rotation = Math.atan2(boid.dy, boid.dx);
-		ctx.ellipse(
-			boid.x, boid.y,
-			4, 2,
-			rotation,
-			0, 2 * Math.PI);
-		ctx.fillStyle = HSLtoRGB((rotation * 180) / Math.PI + 180, 1.0, 0.6);
-		ctx.fill();
-	}
+	//Frame updates
+	t += 2 * delta;
+	t %= 2 * Math.PI;
+	//artifact.position.y = 2 * Math.sin(t);
+	//Camera shake
+	camera.rotation.x = 0.01 * Math.sin(t) - 1;
+	camera.rotation.y = 0.002 * Math.sin(2*t);
+	renderer.render(scene, camera);
 	window.requestAnimationFrame(update);
 }
 window.requestAnimationFrame(update);
 
-function randomInt(min, max) {
-	return Math.floor(min + Math.random() * (max - min));
-}
-
-function normalize(vector, multiplier = 1) {
-	const magnitude = Math.hypot(vector.x, vector.y);
-	if (!magnitude) return {x: 0, y: 0};
-	return {
-		x: (vector.x * multiplier) / magnitude,
-		y: (vector.y * multiplier) / magnitude,
-	};
-}
-
-function add(...vectors) {
-	const result = {x: 0, y: 0};
-	for (const vector of vectors) {
-		result.x += vector.x;
-		result.y += vector.y;
-	}
-	return result;
-}
-
-/* Uncomment in case of closed non-wrapping space
-//k=2-d tree
-function createTree(points) {
-	//points = [...points.sort((a, b) => a.x > b.x)];
-	points = [...shuffle(points)];
-	const median = Math.floor(points.length / 2);
-	const result = points[median];
-	const axes = ['x', 'y'];
-	//Insert points
-	for (const point of points) {
-		if (point === points[median]) continue;
-		let current = result;
-		let axis = 0;
-		while (true) {
-			const pointValue = point[axes[axis]];
-			const currentValue = current[axes[axis]];
-			axis = ++axis % axes.length;
-			if (pointValue <= currentValue) {
-				if (current.left) current = current.left;
-				else {
-					current.left = point;
-					current.left.splitAxis = axes[axis];
-					break;
-				}
-			} else {
-				if (current.right) current = current.right;
-				else {
-					current.right = point;
-					current.right.splitAxis = axes[axis];
-					break;
-				}
-			}
+function create_terrain(radius) {
+	//Construct triangles from heightmap
+	const vertices = new Float32Array(18 * Math.pow(2 * radius, 2));
+	const heightmap = create_heightmap(radius);
+	let k = 0;
+	for (let i = 0; i < 2 * radius; ++i) {
+		for (let j = 0; j < 2 * radius; ++j) {
+			/* Heightmap vertex layout
+				(i, j) (i+1, j)
+				(i, j+1) (i+1, j+1)
+			*/
+			vertices.set([
+				//Upper-right triangle
+				i, heightmap[i][j], j,
+				i+1, heightmap[i+1][j+1], j+1,
+				i+1, heightmap[i+1][j], j,
+				//Lower-left triangle
+				i, heightmap[i][j], j,
+				i, heightmap[i][j+1], j+1,
+				i+1, heightmap[i+1][j+1], j+1
+			], k);
+			k += 18;
 		}
 	}
+	//Write to buffer
+	const result = new THREE.BufferGeometry();
+	result.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+	result.computeBoundingBox();
+	result.center();
+	result.computeVertexNormals();
+	result.normalizeNormals();
 	return result;
 }
 
-function findNeighbors(target, tree, radius) {
-	const queue = [], result = [];
-	queue.push(tree);
-	while (queue.length) {
-		const current = queue.shift();
-		if (!current) continue;
-		const axis = current.splitAxis;
-		if (Math.hypot(current.x - target.x, current.y - target.y) <= radius)
-			result.push(current);
-		if (target[axis] <= current[axis]) {
-			queue.push(current.left);
-			if (Math.abs(current[axis] - target[axis]) <= radius)
-				queue.push(current.right);
-		} else {
-			queue.push(current.right);
-			if (Math.abs(current[axis] - target[axis]) <= radius)
-				queue.push(current.left);
-		}
+function create_heightmap(radius) {
+	const length = 2 * radius + 1;
+	const result = [];
+	for (let i = 0; i < length; ++i) {
+		const column = new Float32Array(length);
+		for (let j = 0; j < length; ++j)
+			column[j] = 2 *Math.random() - 1;
+		result[i] = column;
 	}
 	return result;
 }
-*/
 
-//Fisher-Yates Shuffle
-function shuffle(list) {
-	for (let i = list.length - 1; i >= 0; i--) {
-		k = Math.floor(Math.random() * i);
-		[list[i], list[k]] = [list[k], list[i]];
-	}
-}
-
-function HSLtoRGB(H, S, L) {
-	const C = (1 - Math.abs(2 * L - 1)) * S;
-	H /= 60;
-	const X = C * (1 - Math.abs(H % 2 - 1));
-	let R, G, B;
-	if (H < 1) [R, G, B] = [C, X, 0];
-	else if (H < 2) [R, G, B] = [X, C, 0];
-	else if (H < 3) [R, G, B] = [0, C, X];
-	else if (H < 4) [R, G, B] = [0, X, C];
-	else if (H < 5) [R, G, B] = [X, 0, C];
-	else if (H < 6) [R, G, B] = [C, 0, X];
-	else [R, G, B] = [0, 0, 0];
-	const m = L - C / 2;
-	[R, G, B] = [(R + m) * 255, (G + m) * 255, (B + m) * 255];
-	//return {r: R, g: G, b: B};
-	return '#'
-		+ Math.round(R).toString(16).padStart(2, '0')
-		+ Math.round(B).toString(16).padStart(2, '0')
-		+ Math.round(G).toString(16).padStart(2, '0');
+//3x3 cross product
+function cross(a, b) {
+	return [
+		a[1]*b[2] - a[2]*b[1],
+		a[2]*b[0] - a[0]*b[2],
+		a[0]*b[1] - a[1]*b[0]
+	];
 }
