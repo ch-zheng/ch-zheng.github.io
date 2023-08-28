@@ -1,123 +1,107 @@
 'use strict';
+const canvas = document.getElementById('canvas');
+const gl = canvas.getContext('webgl2');
 
-const renderer = new THREE.WebGLRenderer({
-	canvas: document.getElementById('render_canvas'),
-	antialias: true
-});
+//Vertex shader source
+const vertexShaderSource = `#version 300 es
+	in vec2 pos;
+	out vec2 coord;
+	void main() {
+		coord = pos;
+		gl_Position = vec4(pos, 0, 1);
+	}
+`;
 
-//Scene setup
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera();
-camera.position.z = 7;
-camera.position.y = 8;
-
-//Meshes
-//Terrain
-const radius = 8;
-const terrainGeo = create_terrain(radius);
-const terrainMat = new THREE.MeshLambertMaterial();
-const terrain = new THREE.Mesh(terrainGeo, terrainMat);
-//Water
-const plane = new THREE.PlaneGeometry(2*radius, 2*radius);
-const waterMat = new THREE.MeshPhongMaterial({
-	color: 0x64B5F6,
-	opacity: 0.6,
-	transparent: true
-});
-const water = new THREE.Mesh(plane, waterMat);
-water.position.y = -0.2;
-water.rotateX(-Math.PI / 2);
-//Chunk groups
-const chunk = new THREE.Group();
-chunk.add(terrain);
-chunk.add(water);
-scene.add(chunk);
-const doppelChunk = chunk.clone();
-doppelChunk.scale.z = -1;
-doppelChunk.position.z = -2*radius;
-scene.add(doppelChunk);
-
-//Lighting
-const sunlight = new THREE.DirectionalLight(0xFFFFFF, 0.5);
-scene.add(sunlight);
-const viewLight = new THREE.PointLight(0xFFFFFF, 0.5);
-viewLight.position.set(camera.position.x, camera.position.y, camera.position.z);
-scene.add(viewLight);
-
-//Main loop
-let t = 0;
-let previousTimestamp = performance.now();
-function update(timestamp) {
-	const delta = (timestamp - previousTimestamp) / 1000;
-	previousTimestamp = timestamp;
-	//Frame updates
-	t += 3 * delta;
-	t %= 2 * Math.PI;
-	//Camera shake
-	camera.rotation.x = 0.005 * Math.sin(2 * t) - 1; //Vertical
-	camera.rotation.y = 0.01 * Math.sin(t); //Horizontal
-	//Slide chunks
-	chunk.position.z += 2 * delta;
-	doppelChunk.position.z += 2 * delta;
-	//Chunk wrapping
-	if (chunk.position.z > 2 * radius)
-		chunk.position.z = doppelChunk.position.z - 2 * radius;
-	else if (doppelChunk.position.z > 2 * radius)
-		doppelChunk.position.z = chunk.position.z - 2 * radius;
-	renderer.render(scene, camera);
-	window.requestAnimationFrame(update);
-}
-window.requestAnimationFrame(update);
-
-function create_terrain(radius) {
-	//Construct triangles from heightmap
-	const vertices = new Float32Array(18 * Math.pow(2 * radius, 2));
-	const heightmap = create_heightmap(radius);
-	let k = 0;
-	for (let i = 0; i < 2 * radius; ++i) {
-		for (let j = 0; j < 2 * radius; ++j) {
-			vertices.set([
-				//Upper-right triangle
-				i, heightmap[i][j], j,
-				i+1, heightmap[i+1][j+1], j+1,
-				i+1, heightmap[i+1][j], j,
-				//Lower-left triangle
-				i, heightmap[i][j], j,
-				i, heightmap[i][j+1], j+1,
-				i+1, heightmap[i+1][j+1], j+1
-			], k);
-			k += 18;
+//Fragment shader source
+const fragmentShaderSource = `#version 300 es
+	precision mediump float;
+	in vec2 coord;
+	out vec4 color;
+	uniform float time;
+	float amps[] = float[](0.3, 0.2, 0.3);
+	float freqs[] = float[](0.8, 1.0, 1.0);
+	float vels[] = float[](0.2, 0.5, 0.5);
+	vec2 dirs[] = vec2[](vec2(-1, 0), vec2(0, -1), vec2(1.414, 1.414));
+	vec3 wave(
+		const float a, //Amplitude
+		const float f, //Frequency
+		const float v, //Velocity
+		const vec2 dir, //Direction
+		const vec2 pos, //Position
+		const float t //Time
+	) {
+		const float pi = 3.14159;
+		float z = a * sin(2.0 * pi * f * (dot(dir, pos) + v * t));
+		float dx = a * cos(2.0 * pi * f * (dot(dir, pos) + v * t)) * (2.0 * pi * f * dir.x);
+		float dy = a * cos(2.0 * pi * f * (dot(dir, pos) + v * t)) * (2.0 * pi * f * dir.y);
+		return vec3(dx, dy, z);
+	}
+	void main() {
+		float height = 0.0;
+		float dx = 0.0;
+		float dy = 0.0;
+		for (int i = 0; i < 3; ++i) {
+			vec3 w = wave(amps[i], freqs[i], vels[i], dirs[i], coord, time);
+			dx += w.x;
+			dy += w.y;
+			height += w.z;
 		}
+		vec3 n = normalize(vec3(-dx, -dy, 1));
+		float shade = dot(n, vec3(0, 0, 1));
+		//float shade = (height + 1.0) / 2.0;
+		color = vec4(0, shade / 2.0, shade, 1);
 	}
-	//Write to buffer
-	const result = new THREE.BufferGeometry();
-	result.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-	result.computeBoundingBox();
-	result.center();
-	result.computeVertexNormals();
-	result.normalizeNormals();
-	return result;
+`;
+
+//Create shaders
+const vertexShader = loadShader(gl.VERTEX_SHADER, vertexShaderSource);
+const fragmentShader = loadShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
+const program = gl.createProgram();
+gl.attachShader(program, vertexShader);
+gl.attachShader(program, fragmentShader);
+gl.linkProgram(program);
+if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+	console.log(gl.getProgramInfoLog(program));
+gl.useProgram(program);
+
+//Vertex buffer
+const positions = new Float32Array([
+	-1, -1,
+	1, -1,
+	-1, 1,
+	1, 1
+]);
+const vertexBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW, 0, positions.length);
+//Vertex attribute
+const positionAttrib = gl.getAttribLocation(program, 'pos');
+gl.vertexAttribPointer(positionAttrib, 2, gl.FLOAT, false, 0, 0);
+gl.enableVertexAttribArray(positionAttrib);
+
+//Simulation
+const uniformLocation = gl.getUniformLocation(program, 'time');
+gl.enable(gl.CULL_FACE);
+const start = performance.now();
+requestAnimationFrame(update);
+
+function update() {
+	//Time
+	const elapsed = performance.now() - start;
+	const time = (elapsed / 1000) % 4096;
+	gl.uniform1f(uniformLocation, time);
+	//Draw
+	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+	requestAnimationFrame(update);
 }
 
-function create_heightmap(radius) {
-	const length = 2 * radius + 1;
-	const result = [];
-	for (let i = 0; i < length; ++i) {
-		const column = new Float32Array(length);
-		for (let j = 0; j < length; ++j)
-			column[j] = 2 *Math.random() - 1;
-		result[i] = column;
+function loadShader(type, source) {
+	const shader = gl.createShader(type);
+	gl.shaderSource(shader, source);
+	gl.compileShader(shader);
+	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+		console.log(gl.getShaderInfoLog(shader));
+		gl.deleteShader(shader);
 	}
-	return result;
+	return shader;
 }
-
-//3x3 cross product
-/*
-function cross(a, b) {
-	return [
-		a[1]*b[2] - a[2]*b[1],
-		a[2]*b[0] - a[0]*b[2],
-		a[0]*b[1] - a[1]*b[0]
-	];
-}
-*/

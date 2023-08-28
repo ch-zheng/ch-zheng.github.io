@@ -1,52 +1,47 @@
-@import url('https://fonts.googleapis.com/css2?family=Averia+Serif+Libre:wght@700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Inconsolata:wght@600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Averia+Serif+Libre&display=swap');
 
 body {
 	height: 100vh;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	overflow: hidden;
-	background-color: #212121;
-	background-image: url("topography.svg");
+	background-image: radial-gradient(#181818 10%, #101010 10%);
+	background-size: 64px 64px;
+	background-repeat: repeat;
 }
 
 header {
-	color: #212121;
-	text-align: center;
-}
-
-header > * {
-	margin-left: auto;
-	margin-right: auto;
-}
-
-h1 {
-	margin-top: 0.1em;
-	margin-bottom: 0.1em;
-	font: small-caps 3em 'Averia Serif Libre', serif;
-	white-space: nowrap;
-}
-
-h2 {
-	margin-top: 0.05em;
-	margin-bottom: 0.05em;
-	font: small-caps 2em 'Inconsolata', monospace;
-}
-
-canvas {
-	z-index: -1;
-	border: 1em double black;
-}
-
-img {
-	display: block;
-	width: 150px;
-	height: 150px;
-	border-radius: 50%;
-	filter: grayscale(30%);
-}
-
-.centered {
 	position: absolute;
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%);
+	display: flex;
+	flex-direction: column-reverse;
+	align-items: center;
+	/*
+	visibility: hidden;
+	*/
+}
+
+h1 {
+	font-family: 'Averia Serif Libre', monospace;
+	color: white;
+	padding: 0.2em 0.8em;
+	border-radius: 8px;
+	background-color: #00000080;
+}
+
+canvas {
+	z-index: -1;
+	border: thick solid #101010;
+	border-radius: 20%;
+	background-color: darkblue;
+}
+
+img {
+	display: block;
+	border: thick solid #101010;
+	border-radius: 50%;
+	filter: grayscale(30%);
 }
