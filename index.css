@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Averia+Serif+Libre&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;700&display=swap');
 
 body {
 	height: 100vh;
@@ -6,42 +6,88 @@ body {
 	align-items: center;
 	justify-content: center;
 	overflow: hidden;
-	background-image: radial-gradient(#181818 10%, #101010 10%);
-	background-size: 64px 64px;
-	background-repeat: repeat;
+	background-color: #101010;
 }
 
-header {
+main {
 	position: absolute;
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%);
-	display: flex;
-	flex-direction: column-reverse;
-	align-items: center;
-	/*
-	visibility: hidden;
-	*/
+	width: 512px;
+	height: 512px;
+	overflow: hidden;
 }
 
-h1 {
-	font-family: 'Averia Serif Libre', monospace;
-	color: white;
-	padding: 0.2em 0.8em;
-	border-radius: 8px;
-	background-color: #00000080;
+svg {
+	position: absolute;
+	width: 512px;
+	height: 512px;
+	z-index: -1;
 }
 
 canvas {
-	z-index: -1;
-	border: thick solid #101010;
-	border-radius: 20%;
-	background-color: darkblue;
+	position: absolute;
+	z-index: -2;
+	background-color: black;
 }
 
-img {
-	display: block;
-	border: thick solid #101010;
+header {
+	display: grid;
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	grid-template:
+		"a a a ." 50%
+		"b b c c" 50% / 25% 25% 25% 25%;
+	font-family: 'IBM Plex Sans', sans-serif;
+	color: yellow;
+}
+
+header h1 {
+	grid-area: a;
+	margin: auto 16px;
+	font-weight: bold;
+	font-size: 96px;
+	line-height: 100%;
+}
+
+header img {
+	grid-area: b;
+	margin: auto;
+	width: 80%;
+	height: 80%;
+	border: thick solid yellow;
 	border-radius: 50%;
 	filter: grayscale(30%);
+}
+
+/* Links */
+header div {
+	grid-area: c;
+	display: flex;
+	flex-direction: column;
+	padding: 16px;
+}
+
+header h2 {
+	margin: 0;
+	font-size: 32px;
+	font-weight: bold;
+}
+
+a {
+	text-decoration: none;
+	width: 50%;
+	margin: 2px 0;
+	padding: 4px;
+	background-color: yellow;
+	color: black;
+	font-size: 16px;
+	font-weight: bold;
+}
+
+a:hover {
+	background-color: black;
+	color: yellow;
 }
