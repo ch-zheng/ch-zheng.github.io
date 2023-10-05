@@ -29,7 +29,6 @@ svg {
 canvas {
 	position: absolute;
 	z-index: -2;
-	background-color: black;
 }
 
 header {
@@ -59,7 +58,7 @@ header img {
 	height: 80%;
 	border: thick solid yellow;
 	border-radius: 50%;
-	filter: grayscale(30%);
+	/*filter: grayscale(30%);*/
 }
 
 /* Links */
